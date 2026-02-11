@@ -46,6 +46,10 @@ Located in the `finetuning_approach/` directory, these notebooks document our ex
 *   **`TrainingSLM.ipynb`**:
     *   **Purpose**: Fine-tunes the Phi-3 model.
     *   **Status**: We successfully fine-tuned the model on the textbook text.
+    *   **Training Logs**:
+        
+        ![Training Loss Graph](assets/training_log.png)
+
     *   **Note**: This model is not yet integrated into `final.ipynb` because we still need to train it on Question-Answer (QA) pairs to improve its instruction-following capabilities before deployment.
 
 ---
