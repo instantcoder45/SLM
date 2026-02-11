@@ -1,0 +1,6 @@
+rag_env/
+__pycache__/
+*.pyc
+trash/
+notebook_content.txt
+.ipynb_checkpoints/
