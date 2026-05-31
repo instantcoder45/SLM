@@ -108,6 +108,7 @@ def _init_tools(config: Config) -> None:
     """
     init_functions = [
         ("agents.tools", "init_rag_tool"),
+        ("agents.tools", "init_lecture_registry"),
         ("agents.tools", "init_summarizer_tool"),
         ("agents.tools", "init_comparison_tool"),
     ]
