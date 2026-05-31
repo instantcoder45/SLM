@@ -1,13 +1,14 @@
 """
 RAG (Retrieval-Augmented Generation) specialist agent.
 
-Retrieves relevant textbook passages via FAISS search, then uses the LLM
+Retrieves relevant lecture slide passages via FAISS search, then uses the LLM
 to synthesise a grounded answer.  Falls back to web search when the
-textbook context is insufficient.
+lecture context is insufficient.
 """
 
 from __future__ import annotations
 
+import re
 import traceback
 from typing import Any
 
@@ -34,12 +35,12 @@ def _get_web_search():
 
 _SYSTEM_PROMPT = """\
 You are a Computer Architecture teaching assistant.  Answer the student's
-question using ONLY the provided textbook context.  Be clear and concise.
+question using ONLY the provided lecture context.  Be clear and concise.
 
 Rules:
 - Get straight to the answer. Do not start with greetings or "Here is...".
 - Use bullet points and short paragraphs.
-- Cite the source chapter when possible (e.g. "According to Chapter 3…").
+- Cite the source lecture when possible (e.g. "According to Lecture-12…").
 - If the context does not contain enough information, say so honestly.
 - Use examples or analogies to aid understanding when appropriate.
 """
@@ -49,7 +50,7 @@ def _build_answer_prompt(query: str, context: str, conversation: str) -> list[di
     """Compose chat messages for the answer-generation step."""
     user_content = (
         f"Conversation so far:\n{conversation}\n\n"
-        f"Retrieved textbook context:\n{context}\n\n"
+        f"Retrieved lecture context:\n{context}\n\n"
         f"Student question: {query}\n\n"
         "Provide a clear, well-structured answer."
     )
@@ -67,7 +68,7 @@ def rag_agent_node(state: AgentState) -> dict[str, Any]:
     """
     LangGraph node – RAG specialist.
 
-    1. Searches the textbook FAISS index for relevant chunks.
+    1. Searches the lecture FAISS indices for relevant chunks (lecture-focused).
     2. If retrieval is poor (short / empty), tries web_search as fallback.
     3. Uses the LLM to generate a contextual answer.
     4. Records sources and tool calls in state.
@@ -78,14 +79,14 @@ def rag_agent_node(state: AgentState) -> dict[str, Any]:
     sources: list[dict] = list(state.get("sources", []))
 
     try:
-        # ---- Step 1: Textbook retrieval ----
+        # ---- Step 1: Lecture retrieval ----
         search_textbook = _get_search_textbook()
         retrieval_result = search_textbook.invoke(query)
         tool_log.append(f"search_textbook(query={query!r})")
 
         # ---- Step 2: Evaluate quality & optional fallback ----
         context = retrieval_result
-        source_type = "textbook"
+        source_type = "lectures"
 
         if len(retrieval_result.strip()) < 80:
             # Retrieval looks thin – try web search as supplement
@@ -95,27 +96,27 @@ def rag_agent_node(state: AgentState) -> dict[str, Any]:
                 tool_log.append(f"web_search(query={query!r})  [fallback]")
                 if web_result and len(web_result.strip()) > 40:
                     context = (
-                        f"--- Textbook context ---\n{retrieval_result}\n\n"
+                        f"--- Lecture context ---\n{retrieval_result}\n\n"
                         f"--- Web context (supplementary) ---\n{web_result}"
                     )
-                    source_type = "textbook+web"
+                    source_type = "lectures+web"
             except Exception:
                 pass  # web search failing is non-critical
 
         # ---- Step 3: Build source citations ----
-        # Parse chapter references from the context string
-        import re
-        chapter_refs = re.findall(r"\[Source:\s*(chapter\d+)\]", context, re.IGNORECASE)
-        for ch in chapter_refs:
-            sources.append({"chapter": ch, "type": source_type})
-        if not chapter_refs:
-            sources.append({"type": source_type, "note": "Chapters could not be identified from context."})
+        # Parse lecture references from the context string
+        # Matches any [Source: <name>] pattern (supports Lecture-12, L-14, RARS, etc.)
+        lecture_refs = re.findall(r"\[Source:\s*([^\]]+)\]", context, re.IGNORECASE)
+        for lec in lecture_refs:
+            sources.append({"chapter": lec.strip(), "type": source_type})
+        if not lecture_refs:
+            sources.append({"type": source_type, "note": "Lecture sources could not be identified from context."})
 
         # ---- Step 4: Generate answer ----
         messages = _build_answer_prompt(query, context, conversation)
         answer = generate_with_chat_template(messages, max_new_tokens=1024)
 
-        print(f"📚 RAG agent produced answer ({len(answer)} chars, {len(chapter_refs)} sources)")
+        print(f"📚 RAG agent produced answer ({len(answer)} chars, {len(lecture_refs)} sources)")
 
         return {
             "agent_output": answer,
@@ -140,7 +141,7 @@ def rag_agent_node(state: AgentState) -> dict[str, Any]:
             }
         except Exception:
             return {
-                "agent_output": "I encountered an error while searching the textbook. Please try rephrasing your question.",
+                "agent_output": "I encountered an error while searching the lectures. Please try rephrasing your question.",
                 "tool_calls_log": tool_log,
                 "sources": sources,
                 "error": error_msg,
