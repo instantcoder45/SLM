@@ -3,7 +3,7 @@ Knowledge specialist agent.
 
 Handles three sub-tasks via keyword-based internal routing:
     1. lookup_definition  – "define …", "what is …", "meaning of …"
-    2. summarize_chapter  – "summarize chapter N", "overview of chapter N"
+    2. summarize_chapter  – "summarize lecture N", "overview of lecture N"
     3. compare_concepts   – "compare X vs Y", "difference between X and Y"
 
 After calling the appropriate tool the LLM formats the raw output into a
@@ -48,6 +48,8 @@ _DEFINITION_KEYWORDS = [
 _SUMMARY_KEYWORDS = [
     "summarize", "summary", "summarise", "overview of chapter",
     "overview chapter", "chapter summary", "recap chapter",
+    "overview of lecture", "overview lecture", "lecture summary",
+    "recap lecture", "summarize lecture", "summarise lecture",
 ]
 
 _COMPARE_KEYWORDS = [
@@ -79,15 +81,46 @@ def _detect_sub_task(query: str) -> str:
     return "define"
 
 
-def _extract_chapter_number(query: str) -> int | None:
-    """Try to extract a chapter number from the query string."""
+def _extract_lecture_identifier(query: str) -> str | None:
+    """
+    Try to extract a lecture/chapter identifier from the query string.
+
+    Supports formats like:
+      - "Lecture 12", "Lecture-12"
+      - "L-14", "L 14"
+      - "Lec21", "Lec 21"
+      - "chapter 3", "chapter3"
+      - Just a number if preceded by summary keywords
+    """
+    # Try "Lecture-N" or "Lecture N"
+    match = re.search(r"lecture[- ]?(\d+)", query, re.IGNORECASE)
+    if match:
+        return f"Lecture-{match.group(1)}"
+
+    # Try "L-N" or "L N"
+    match = re.search(r"\bL[- ]?(\d+)", query)
+    if match:
+        return f"L-{match.group(1)}"
+
+    # Try "Lec N" or "LecN"
+    match = re.search(r"\blec[- ]?(\d+)", query, re.IGNORECASE)
+    if match:
+        return f"Lec{match.group(1)}"
+
+    # Try "chapter N"
     match = re.search(r"chapter\s*(\d+)", query, re.IGNORECASE)
     if match:
-        return int(match.group(1))
-    # Try bare ordinals / digits near keywords
+        return match.group(1)
+
+    # Try "RARS" explicitly
+    if re.search(r"\brars\b", query, re.IGNORECASE):
+        return "RARS"
+
+    # Try bare number near summary keywords
     match = re.search(r"\b(\d+)\b", query)
     if match:
-        return int(match.group(1))
+        return match.group(1)
+
     return None
 
 
@@ -177,14 +210,14 @@ def knowledge_agent_node(state: AgentState) -> dict[str, Any]:
         # ---- Dispatch to the appropriate tool ----
 
         if sub_task == "summarize":
-            chapter_num = _extract_chapter_number(query)
-            if chapter_num is None:
-                raw_result = "I couldn't determine which chapter to summarize. Please specify a chapter number (e.g. 'summarize chapter 3')."
+            lecture_id = _extract_lecture_identifier(query)
+            if lecture_id is None:
+                raw_result = "I couldn't determine which lecture to summarize. Please specify a lecture name or number (e.g. 'summarize Lecture 12' or 'summarize L-14')."
             else:
                 summarize = _get_summarize_chapter()
-                raw_result = summarize.invoke(chapter_num)
-                tool_log.append(f"summarize_chapter(chapter_number={chapter_num})")
-                sources.append({"chapter": f"chapter{chapter_num}", "type": "summary"})
+                raw_result = summarize.invoke(lecture_id)
+                tool_log.append(f"summarize_chapter(identifier={lecture_id!r})")
+                sources.append({"chapter": lecture_id, "type": "summary"})
 
         elif sub_task == "compare":
             concept_a, concept_b = _extract_concepts(query)
