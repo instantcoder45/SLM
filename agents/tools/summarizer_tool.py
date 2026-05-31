@@ -1,9 +1,9 @@
 """
-Chapter summarization tool.
+Lecture summarization tool.
 
-Loads all text chunks for a requested chapter from the FAISS database,
+Loads all text chunks for a requested lecture from the FAISS database,
 joins them, and sends them to the LLM to produce a concise summary.
-Caches results so each chapter is only summarized once per session.
+Caches results so each lecture is only summarized once per session.
 """
 
 from langchain_core.tools import tool
@@ -12,17 +12,7 @@ from langchain_core.tools import tool
 # Module-level state (populated by init_summarizer_tool)
 # ---------------------------------------------------------------------------
 _config = None
-_summary_cache: dict[int, str] = {}   # chapter_number -> summary text
-
-# Chapter titles for richer context
-_CHAPTER_TITLES: dict[int, str] = {
-    1: "Fundamentals of Quantitative Design and Analysis",
-    2: "Memory Hierarchy Design",
-    3: "Instruction-Level Parallelism and Its Exploitation",
-    4: "Data-Level Parallelism in Vector, SIMD, and GPU Architectures",
-    5: "Thread-Level Parallelism",
-    6: "Warehouse-Scale Computers to Exploit Request-Level and Data-Level Parallelism",
-}
+_summary_cache: dict[str, str] = {}   # lecture_identifier -> summary text
 
 
 def init_summarizer_tool(config) -> None:
@@ -38,53 +28,55 @@ def init_summarizer_tool(config) -> None:
 
 
 @tool
-def summarize_chapter(chapter_number: int) -> str:
-    """Generate a comprehensive summary of a textbook chapter.
+def summarize_chapter(chapter_identifier: str) -> str:
+    """Generate a comprehensive summary of a lecture or chapter.
 
     Use this tool when the user asks for an overview, summary, or key
-    points of a specific chapter from the 'Computer Architecture:
-    A Quantitative Approach' textbook.
+    points of a specific lecture from the Computer Architecture course.
 
-    The textbook has 6 chapters:
-      1. Fundamentals of Quantitative Design and Analysis
-      2. Memory Hierarchy Design
-      3. Instruction-Level Parallelism and Its Exploitation
-      4. Data-Level Parallelism in Vector, SIMD, and GPU Architectures
-      5. Thread-Level Parallelism
-      6. Warehouse-Scale Computers to Exploit Request-Level and Data-Level Parallelism
+    Accepts flexible identifiers:
+      - Lecture name: "Lecture-12", "L-14", "RARS", "Lec21"
+      - Lecture number: "12", "14"
 
     Args:
-        chapter_number: An integer from 1 to 6 indicating the chapter.
+        chapter_identifier: A string identifying the lecture (name or number).
 
     Returns:
-        A structured summary of the chapter, or an error message.
+        A structured summary of the lecture, or an error message.
     """
     try:
-        # Validate input
-        if not isinstance(chapter_number, int) or chapter_number < 1 or chapter_number > 6:
+        # Lazy imports to avoid circular dependency
+        from agents.tools.rag_tool import get_chapter_texts, get_matching_lecture_name
+        from agents.llm import generate_with_chat_template
+
+        # Resolve the identifier to an actual lecture name
+        identifier = str(chapter_identifier).strip()
+        matched_name = get_matching_lecture_name(identifier)
+
+        if matched_name is None:
+            # Try to provide helpful suggestions
+            from agents.tools.rag_tool import get_all_loaded_lectures
+            available = get_all_loaded_lectures()
+            suggestion = ", ".join(available[:10])
             return (
-                f"Invalid chapter number: {chapter_number}. "
-                "Please provide an integer between 1 and 6."
+                f"Could not find a lecture matching '{identifier}'. "
+                f"Available lectures include: {suggestion}... "
+                f"Please specify an exact lecture name or number."
             )
 
         # Return cached summary if available
-        if chapter_number in _summary_cache:
+        if matched_name in _summary_cache:
             return (
-                f"[Cached] Summary of Chapter {chapter_number}: "
-                f"{_CHAPTER_TITLES.get(chapter_number, '')}\n\n"
-                f"{_summary_cache[chapter_number]}"
+                f"[Cached] Summary of {matched_name}\n\n"
+                f"{_summary_cache[matched_name]}"
             )
 
-        # Lazy import to avoid circular dependency
-        from agents.tools.rag_tool import get_chapter_texts
-        from agents.llm import generate_with_chat_template
-
-        # Load all text chunks for this chapter
-        texts = get_chapter_texts(chapter_number)
+        # Load all text chunks for this lecture
+        texts = get_chapter_texts(matched_name)
         if not texts:
             return (
-                f"No text data found for Chapter {chapter_number}. "
-                "Make sure the chapter database is properly loaded."
+                f"No text data found for '{matched_name}'. "
+                "Make sure the lecture database is properly loaded."
             )
 
         # Combine chunks (truncate if too long to fit in context window)
@@ -94,14 +86,12 @@ def summarize_chapter(chapter_number: int) -> str:
         if len(combined) > max_chars:
             combined = combined[:max_chars] + "\n\n[... text truncated for length ...]"
 
-        chapter_title = _CHAPTER_TITLES.get(chapter_number, f"Chapter {chapter_number}")
-
         messages = [
             {
                 "role": "system",
                 "content": (
                     "You are a Computer Architecture professor. Provide a clear, "
-                    "well-structured summary of the textbook chapter content provided below. "
+                    "well-structured summary of the lecture content provided below. "
                     "Organise your summary with:\n"
                     "1. A one-paragraph overview\n"
                     "2. Key topics covered (bulleted list)\n"
@@ -112,9 +102,9 @@ def summarize_chapter(chapter_number: int) -> str:
             {
                 "role": "user",
                 "content": (
-                    f"Please summarize Chapter {chapter_number}: '{chapter_title}' "
-                    f"from 'Computer Architecture: A Quantitative Approach'.\n\n"
-                    f"Chapter content:\n{combined}"
+                    f"Please summarize the lecture '{matched_name}' "
+                    f"from the Computer Architecture course.\n\n"
+                    f"Lecture content:\n{combined}"
                 ),
             },
         ]
@@ -122,12 +112,12 @@ def summarize_chapter(chapter_number: int) -> str:
         summary = generate_with_chat_template(messages, max_new_tokens=600)
 
         # Cache the result
-        _summary_cache[chapter_number] = summary
+        _summary_cache[matched_name] = summary
 
         return (
-            f"Summary of Chapter {chapter_number}: {chapter_title}\n\n"
+            f"Summary of {matched_name}\n\n"
             f"{summary}"
         )
 
     except Exception as e:
-        return f"Error summarizing chapter: {type(e).__name__}: {e}"
+        return f"Error summarizing lecture: {type(e).__name__}: {e}"
