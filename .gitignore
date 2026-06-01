@@ -4,3 +4,4 @@ __pycache__/
 trash/
 notebook_content.txt
 .ipynb_checkpoints/
+.DS_Store
