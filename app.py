@@ -63,11 +63,11 @@ def chat_handler(user_message: str, chat_history: list):
 
         # Agent badge
         agent_badges = {
-            "rag_agent": "📚 Textbook Agent",
-            "math_agent": "🧮 Math Agent",
-            "knowledge_agent": "📖 Knowledge Agent",
-            "code_agent": "💻 Code Agent",
-            "direct": "💬 Direct Chat",
+            "rag_agent": " Textbook Agent",
+            "math_agent": " Math Agent",
+            "knowledge_agent": " Knowledge Agent",
+            "code_agent": " Code Agent",
+            "direct": " Direct Chat",
         }
         badge = agent_badges.get(agent_used, f"🤖 {agent_used}")
         formatted_response += f"**[{badge}]**\n\n"
@@ -163,10 +163,10 @@ def create_ui():
             examples=[
                 "What is the difference between RISC and CISC?",
                 "Calculate the speedup if we improve 40% of the program by 2x",
-                "Define pipeline hazard",
-                "Summarize Chapter 3",
-                "Compare cache and virtual memory",
-                "Write MIPS code to add two numbers",
+                "Define pipeline hazard.",
+                "Compare cache and virtual memory.",
+                "Write RISCV assembly code to add two numbers.",
+                "What is Branch target Buffer?",
                 "What is Amdahl's Law?",
             ],
             inputs=msg_input,
