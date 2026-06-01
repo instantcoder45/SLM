@@ -29,11 +29,11 @@ def initialize(cfg: Config = None):
     config = cfg or Config()
     print(config.summary())
 
-    print("\n⏳ Building agent graph (this loads the LLM — may take a minute)...\n")
+    print("\nBuilding agent graph (this loads the LLM — may take a minute)...\n")
     graph = build_graph(config)
     memory = ConversationMemory(max_turns=config.max_history)
 
-    print("✅ Agent system ready!\n")
+    print("Agent system ready!\n")
 
 
 # ============================================================
@@ -63,13 +63,13 @@ def chat_handler(user_message: str, chat_history: list):
 
         # Agent badge
         agent_badges = {
-            "rag_agent": " Textbook Agent",
-            "math_agent": " Math Agent",
-            "knowledge_agent": " Knowledge Agent",
-            "code_agent": " Code Agent",
-            "direct": " Direct Chat",
+            "rag_agent": "Textbook Agent",
+            "math_agent": "Math Agent",
+            "knowledge_agent": "Knowledge Agent",
+            "code_agent": "Code Agent",
+            "direct": "Direct Chat",
         }
-        badge = agent_badges.get(agent_used, f"🤖 {agent_used}")
+        badge = agent_badges.get(agent_used, agent_used)
         formatted_response += f"**[{badge}]**\n\n"
 
         # Main response
@@ -77,7 +77,7 @@ def chat_handler(user_message: str, chat_history: list):
 
         # Tool usage trace (collapsible)
         if tool_log:
-            formatted_response += "\n\n<details><summary>🔧 Tools Used</summary>\n\n"
+            formatted_response += "\n\n<details><summary>Tools Used</summary>\n\n"
             for log_entry in tool_log:
                 formatted_response += f"- {log_entry}\n"
             formatted_response += "\n</details>"
@@ -86,7 +86,7 @@ def chat_handler(user_message: str, chat_history: list):
         chat_history.append((user_message, formatted_response))
 
     except Exception as e:
-        error_msg = f"❌ **Error**: {str(e)}\n\nPlease try rephrasing your question."
+        error_msg = f"**Error**: {str(e)}\n\nPlease try rephrasing your question."
         chat_history.append((user_message, error_msg))
 
     return chat_history, ""
@@ -131,7 +131,7 @@ def create_ui():
     ) as demo:
 
         gr.HTML("""
-            <div class="agent-header">🤖 Computer Architecture Teaching Assistant</div>
+            <div class="agent-header">Computer Architecture Teaching Assistant</div>
             <div class="description">
                 Powered by Phi-3.5 + RAG | Multi-Agent System with LangGraph<br>
                 <em>Ask about Computer Architecture concepts, calculations, assembly code, and more!</em>
@@ -143,7 +143,7 @@ def create_ui():
             height=500,
             show_label=False,
             bubble_full_width=False,
-            avatar_images=(None, "🤖"),
+            avatar_images=None,
         )
 
         with gr.Row():
@@ -157,7 +157,7 @@ def create_ui():
             send_btn = gr.Button("Send", variant="primary", scale=1)
 
         with gr.Row():
-            clear_btn = gr.Button("🗑️ Clear History", variant="secondary")
+            clear_btn = gr.Button("Clear History", variant="secondary")
 
         gr.Examples(
             examples=[
@@ -170,7 +170,7 @@ def create_ui():
                 "What is Amdahl's Law?",
             ],
             inputs=msg_input,
-            label="💡 Try these examples:",
+            label="Try these examples:",
         )
 
         # Event handlers
