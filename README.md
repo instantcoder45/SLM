@@ -264,9 +264,3 @@ All settings can be overridden via CLI flags or by modifying `agents/config.py`.
 ### Enhanced Tooling
 - Advanced math/unit converters and graphing/plotting tools.
 - External glossary and documentation lookups beyond the built-in term database.
-
----
-
-## License
-
-This project is for educational and research purposes.
